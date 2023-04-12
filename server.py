@@ -29,7 +29,9 @@ class ChatroomServer:
         self.server_socket = None
         self.clients = {}
         self.usernames = []
-        self.max_clients=3
+        self.max_clients = 3
+        self.num_clients = 0
+
 
     def start(self):
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -38,10 +40,11 @@ class ChatroomServer:
         self.server_socket.listen()
         print(f"Chatroom server started on port {self.port}")
         while True:
-            if len(self.clients) < self.max_clients:
+            if self.num_clients < self.max_clients:
                 client_socket, client_address = self.server_socket.accept()
                 thread = threading.Thread(target=self.handle_client, args=(client_socket,))
                 thread.start()
+                self.num_clients += 1
             else:
                 print("Maximum number of clients reached. Rejecting connection request.")
                 client_socket, client_address = self.server_socket.accept()
@@ -86,6 +89,7 @@ class ChatroomServer:
                 del self.clients[client_socket]
                 client_socket.close()
                 self.broadcast(json.dumps(create_message(quit_accept_flag=1, payload=f"{username} has left the chatroom.")).encode())
+                self.num_clients -= 1
                 break
 
             elif message["REPORT_REQUEST_FLAG"] == 1:
@@ -102,8 +106,17 @@ class ChatroomServer:
             client_socket.send(prefix.encode()+message)
     def send_report(self, client_socket):
         num_users = len(self.clients)
-        message = create_message(report_response_flag=1, number=num_users)
+        payload = []
+        for client, username in self.clients.items():
+            ip_address, port_number = client.getpeername()
+            payload.append({
+                'USERNAME': username,
+                'IP_ADDRESS': ip_address,
+                'PORT_NUMBER': port_number
+            })
+        message = create_message(report_response_flag=1, number=num_users, payload=json.dumps(payload))
         client_socket.send(json.dumps(message).encode())
+
 
 if __name__ == "__main__":
     chatroom_server = ChatroomServer()
