@@ -2,10 +2,11 @@ import json
 import socket
 import threading
 import tkinter as tk
+import datetime
 
 def create_message(report_request_flag=0, report_response_flag=0, join_request_flag=0, join_reject_flag=0,
                    join_accept_flag=0, new_user_flag=0, quit_request_flag=0, quit_accept_flag=0,
-                   attachment_flag=0, number=0, username='', filename='', payload=''):
+                   attachment_flag=0, number=0, username='', filename='', payload='', timestamp=''):
     message = {
         'REPORT_REQUEST_FLAG': report_request_flag,
         'REPORT_RESPONSE_FLAG': report_response_flag,
@@ -20,7 +21,8 @@ def create_message(report_request_flag=0, report_response_flag=0, join_request_f
         'USERNAME': username,
         'FILENAME': filename,
         'PAYLOAD_LENGTH': len(payload),
-        'PAYLOAD': payload
+        'PAYLOAD': payload,
+        'TIMESTAMP': timestamp
     }
     return message
 
@@ -58,12 +60,14 @@ class ChatroomClient:
     def send_message(self):
         message = self.input_entry.get()
         if message:
+            timestamp = datetime.datetime.now().strftime('[%H:%M:%S]')
             if message.startswith('/report'):
-                message = create_message(report_request_flag=1, username=self.username)
+                message = create_message(report_request_flag=1, username=self.username, timestamp=timestamp)
             else:
-                message = create_message(payload=message, username=self.username)
+                message = create_message(payload=message, username=self.username, timestamp=timestamp)
             self.client_socket.send(json.dumps(message).encode())
             self.input_entry.delete(0, tk.END)
+
 
     def get_report(self):
         if self.client_socket:
@@ -73,17 +77,20 @@ class ChatroomClient:
             if response['REPORT_RESPONSE_FLAG'] == 1:
                 num_active_users = response['NUMBER']
                 payload = json.loads(response['PAYLOAD'])
-                message = f"There are {num_active_users} active users in the chatroom.\n"
-                if payload:
-                    for i, user in enumerate(payload):
-                        message += f"{i+1}. {user['USERNAME']} at IP: {user['IP_ADDRESS']} and port: {user['PORT_NUMBER']}.\n"
-                else:
-                    message += "There are no active users."
+                message = f"There are {num_active_users} active users in the chatroom."
                 self.message_listbox.insert(tk.END, message)
+                if payload:
+                    users_list = [f"{i+1}. {user['USERNAME']} at IP: {user['IP_ADDRESS']} and port: {user['PORT_NUMBER']}" for i, user in enumerate(payload)]
+                    for user_info in users_list:
+                        self.message_listbox.insert(tk.END, user_info)
+                else:
+                    self.message_listbox.insert(tk.END, "There are no active users.")
             else:
                 self.message_listbox.insert(tk.END, "Failed to get report from server.")
         else:
-            print("You need to join the chatroom before requesting a report.")
+                print("You need to join the chatroom before requesting a report.")
+
+
 
 
     def join_chatroom_and_start(self):
@@ -116,6 +123,10 @@ class ChatroomClient:
                 self.message_listbox.insert(tk.END, response['PAYLOAD'])
                 self.client_socket.close()
                 self.client_socket = None
+                # If the rejection message is because of the maximum capacity, don't clear the username.
+                if response['PAYLOAD'] != "The server rejects the join request. The chatroom has reached its maximum capacity.":
+                    self.username = None
+
 
 
     def prompt_for_username(self):

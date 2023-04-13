@@ -1,9 +1,10 @@
 import socket
 import threading
 import json
+import datetime
 def create_message(report_request_flag=0, report_response_flag=0, join_request_flag=0, join_reject_flag=0,
                    join_accept_flag=0, new_user_flag=0, quit_request_flag=0, quit_accept_flag=0,
-                   attachment_flag=0, number=0, username='', filename='', payload=''):
+                   attachment_flag=0, number=0, username='', filename='', payload='',timestamp=''):
     message = {
         'REPORT_REQUEST_FLAG': report_request_flag,
         'REPORT_RESPONSE_FLAG': report_response_flag,
@@ -18,7 +19,8 @@ def create_message(report_request_flag=0, report_response_flag=0, join_request_f
         'USERNAME': username,
         'FILENAME': filename,
         'PAYLOAD_LENGTH': len(payload),
-        'PAYLOAD': payload
+        'PAYLOAD': payload,
+        'TIMESTAMP':timestamp
     }
     return message
 
@@ -40,16 +42,16 @@ class ChatroomServer:
         self.server_socket.listen()
         print(f"Chatroom server started on port {self.port}")
         while True:
+            client_socket, client_address = self.server_socket.accept()
             if self.num_clients < self.max_clients:
-                client_socket, client_address = self.server_socket.accept()
+                self.num_clients += 1
                 thread = threading.Thread(target=self.handle_client, args=(client_socket,))
                 thread.start()
-                self.num_clients += 1
             else:
                 print("Maximum number of clients reached. Rejecting connection request.")
-                client_socket, client_address = self.server_socket.accept()
                 client_socket.send("Maximum number of clients reached. Please try again later.".encode())
                 client_socket.close()
+
     def receive_messages(self):
         while self.running:
             try:
@@ -70,6 +72,11 @@ class ChatroomServer:
 
             if message["JOIN_REQUEST_FLAG"] == 1:
                 username = message["USERNAME"]
+                if self.num_clients >= self.max_clients:
+                    reject_message = create_message(join_reject_flag=1, payload="The server rejects the join request. The chatroom has reached its maximum capacity.")
+                    client_socket.send(json.dumps(reject_message).encode())
+                    client_socket.close()
+                    return
                 if username in self.usernames:
                     reject_message = create_message(join_reject_flag=1, payload="This username is already taken. Please choose another one.")
                     client_socket.send(json.dumps(reject_message).encode())
@@ -81,6 +88,8 @@ class ChatroomServer:
                 welcome_message = create_message(join_accept_flag=1, payload="Welcome to the chatroom!")
                 client_socket.send(json.dumps(welcome_message).encode())
                 self.broadcast(json.dumps(create_message(new_user_flag=1, payload=f"{username} has joined the chatroom.")).encode())
+                # Add this line to increment the number of clients when a user successfully joins the chatroom
+                #self.num_clients += 1
 
             elif message["QUIT_REQUEST_FLAG"] == 1:
                 username = self.clients[client_socket]
@@ -97,8 +106,10 @@ class ChatroomServer:
 
             elif message["PAYLOAD"]:
                 username = self.clients[client_socket]
-                broadcast_message = create_message(payload=f"{username}: {message['PAYLOAD']}")
+                timestamp = message['TIMESTAMP']
+                broadcast_message = create_message(payload=f"{timestamp} {username}: {message['PAYLOAD']}")
                 self.broadcast(json.dumps(broadcast_message).encode())
+
 
 
     def broadcast(self, message, prefix=""):
