@@ -2,10 +2,11 @@ import json
 import socket
 import threading
 import datetime
+import os
 
 def create_message(report_request_flag=0, report_response_flag=0, join_request_flag=0, join_reject_flag=0,
                    join_accept_flag=0, new_user_flag=0, quit_request_flag=0, quit_accept_flag=0,
-                   attachment_flag=0, number=0, username='', filename='', payload='', timestamp=''):
+                   attachment_flag=0, number=0, username='', filename='', payload='', timestamp='', filepath=''):
     message = {
         'REPORT_REQUEST_FLAG': report_request_flag,
         'REPORT_RESPONSE_FLAG': report_response_flag,
@@ -21,7 +22,8 @@ def create_message(report_request_flag=0, report_response_flag=0, join_request_f
         'FILENAME': filename,
         'PAYLOAD_LENGTH': len(payload),
         'PAYLOAD': payload,
-        'TIMESTAMP': timestamp
+        'TIMESTAMP': timestamp,
+        'FILEPATH': filepath
     }
     return message
 
@@ -55,7 +57,20 @@ class ChatroomClient:
                 message = create_message(payload=message, username=self.username, timestamp=timestamp)
             self.client_socket.send(json.dumps(message).encode())
 
+    def upload_file(self):
+        print("Please enter the file path and name:")
+        filepath = input("> ")
+        try:
+            with open(filepath, 'r') as f:
+                content = f.read()
+        except FileNotFoundError:
+            print("File not found.")
+            return
 
+        filename = os.path.basename(filepath)
+        message = create_message(attachment_flag=1, username=self.username, filename=filename,
+                                 payload=content, filepath=filepath)
+        self.client_socket.send(json.dumps(message).encode())
     def join_chatroom_and_start(self):
         if self.username is None:
             self.prompt_for_username()
@@ -117,7 +132,6 @@ class ChatroomClient:
         self.client_socket.send(json.dumps(report_request).encode())
         report_response = json.loads(self.client_socket.recv(1024).decode())
 
-
         if report_response["REPORT_RESPONSE_FLAG"] == 1:
             number_of_users = report_response["NUMBER"]
             print(f"There are {number_of_users} active users in the chatroom.")
@@ -125,13 +139,13 @@ class ChatroomClient:
             if report_response["PAYLOAD"]:
                 for index, user in enumerate(report_response["PAYLOAD"], start=1):
                     print(f"{index}. {user['USERNAME']} at IP: {user['IP_ADDRESS']} and port: {user['PORT_NUMBER']}.")
-
             else:
                 print("No active users in the chatroom.")
         else:
             print("Error: Invalid response from the server.")
 
         self.show_menu()
+
 
 
 

@@ -2,6 +2,7 @@ import socket
 import threading
 import datetime
 import json
+import os
 
 def create_message(report_request_flag=0, report_response_flag=0, join_request_flag=0, join_reject_flag=0,
                    join_accept_flag=0, new_user_flag=0, quit_request_flag=0, quit_accept_flag=0,
@@ -70,14 +71,17 @@ class ChatroomServer:
                     client_socket.send(json.dumps(reject_message).encode())
                     client_socket.close()
                     return
+                if self.num_clients == self.max_clients:
+                    reject_message = create_message(join_reject_flag=1, payload="The server rejects the join request. The chatroom has reached its maximum capacity.")
+                    client_socket.send(json.dumps(reject_message).encode())
+                    client_socket.close()
+                    return
+
                 self.usernames.append(username)
                 self.clients[client_socket] = username
                 print(f"New connection from {username}")
-                welcome_message = create_message(join_accept_flag=1, payload="Welcome to the chatroom!")
+                welcome_message = create_message(join_accept_flag=1, username=username, payload="Welcome to the chatroom!", payload2=json.dumps(self.chat_history))
                 client_socket.send(json.dumps(welcome_message).encode())
-
-                for history_message in self.chat_history:
-                    client_socket.send((json.dumps(history_message) + '\n').encode())
 
                 timestamp = datetime.datetime.now().strftime( '[%H:%M:%S]')
                 self.broadcast(json.dumps(create_message(new_user_flag=1, payload=f"{timestamp} {username} has joined the chatroom.")).encode())
@@ -97,11 +101,24 @@ class ChatroomServer:
                 self.send_report(client_socket)
 
             elif message["PAYLOAD"]:
-                username = self.clients[client_socket]
-                timestamp = message['TIMESTAMP']
-                broadcast_message = create_message(payload=f"{timestamp} {username}: {message['PAYLOAD']}")
-                self.broadcast(json.dumps(broadcast_message).encode())
-                self.chat_history.append(broadcast_message) # Store the message in the chat history
+                if message["PAYLOAD"] == "a":
+                    client_socket.send(json.dumps(create_message(attachment_flag=1)).encode())
+                    attachment_message = json.loads(client_socket.recv(1024).decode())
+                    if attachment_message["ATTACHMENT_FLAG"] == 1:
+                        filename = attachment_message["FILENAME"]
+                        payload = attachment_message["PAYLOAD"]
+                        with open(os.path.join("downloads", filename), "w") as f:
+                            f.write(payload)
+                        self.broadcast(json.dumps(create_message(payload=f"{datetime.datetime.now().strftime('[%H:%M:%S]')} {self.clients[client_socket]} uploaded an attachment: {filename}")).encode())
+                        self.chat_history.append(create_message(payload=f"{datetime.datetime.now().strftime('[%H:%M:%S]')} {self.clients[client_socket]} uploaded an attachment: {filename}"))
+                else:
+                    username = self.clients[client_socket]
+                    timestamp = message['TIMESTAMP']
+                    broadcast_message = create_message(payload=f"{timestamp} {username}: {message['PAYLOAD']}")
+                    self.broadcast(json.dumps(broadcast_message).encode())
+                    self.chat_history.append(broadcast_message) # Store the message in the chat history
+
+
 
     def broadcast(self, message, prefix=""):
         for client_socket in self.clients:
@@ -117,7 +134,8 @@ class ChatroomServer:
                 'PORT_NUMBER': port_number
             })
         message = create_message(report_response_flag=1, number=num_users, payload=json.dumps(payload))
-        return message
+        client_socket.send(json.dumps(message).encode())
+
 
 
 if __name__ == "__main__":
