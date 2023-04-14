@@ -1,7 +1,8 @@
 import socket
 import threading
-import json
 import datetime
+import json
+
 def create_message(report_request_flag=0, report_response_flag=0, join_request_flag=0, join_reject_flag=0,
                    join_accept_flag=0, new_user_flag=0, quit_request_flag=0, quit_accept_flag=0,
                    attachment_flag=0, number=0, username='', filename='', payload='',timestamp=''):
@@ -26,14 +27,14 @@ def create_message(report_request_flag=0, report_response_flag=0, join_request_f
 
 class ChatroomServer:
     def __init__(self):
-        self.host = '127.0.0.1' # loopback address
+        self.host = 'localhost' # loopback address
         self.port = 18000 # default port number
         self.server_socket = None
         self.clients = {}
         self.usernames = []
         self.max_clients = 3
         self.num_clients = 0
-
+        self.chat_history = []
 
     def start(self):
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -52,14 +53,6 @@ class ChatroomServer:
                 client_socket.send("Maximum number of clients reached. Please try again later.".encode())
                 client_socket.close()
 
-    def receive_messages(self):
-        while self.running:
-            try:
-                message = self.client_socket.recv(1024).decode()
-                print(message)
-            except ConnectionResetError:
-                print("Connection to the server has been lost.")
-                self.running = False            
     def handle_client(self, client_socket):
         while True:
             try:
@@ -72,13 +65,8 @@ class ChatroomServer:
 
             if message["JOIN_REQUEST_FLAG"] == 1:
                 username = message["USERNAME"]
-                if self.num_clients >= self.max_clients:
-                    reject_message = create_message(join_reject_flag=1, payload="The server rejects the join request. The chatroom has reached its maximum capacity.")
-                    client_socket.send(json.dumps(reject_message).encode())
-                    client_socket.close()
-                    return
                 if username in self.usernames:
-                    reject_message = create_message(join_reject_flag=1, payload="This username is already taken. Please choose another one.")
+                    reject_message = create_message(join_reject_flag=1, payload="The server rejects the join request. Another user is using this username.")
                     client_socket.send(json.dumps(reject_message).encode())
                     client_socket.close()
                     return
@@ -87,9 +75,12 @@ class ChatroomServer:
                 print(f"New connection from {username}")
                 welcome_message = create_message(join_accept_flag=1, payload="Welcome to the chatroom!")
                 client_socket.send(json.dumps(welcome_message).encode())
-                self.broadcast(json.dumps(create_message(new_user_flag=1, payload=f"{username} has joined the chatroom.")).encode())
-                # Add this line to increment the number of clients when a user successfully joins the chatroom
-                #self.num_clients += 1
+
+                for history_message in self.chat_history:
+                    client_socket.send((json.dumps(history_message) + '\n').encode())
+
+                timestamp = datetime.datetime.now().strftime( '[%H:%M:%S]')
+                self.broadcast(json.dumps(create_message(new_user_flag=1, payload=f"{timestamp} {username} has joined the chatroom.")).encode())
 
             elif message["QUIT_REQUEST_FLAG"] == 1:
                 username = self.clients[client_socket]
@@ -97,7 +88,8 @@ class ChatroomServer:
                 self.usernames.remove(username)
                 del self.clients[client_socket]
                 client_socket.close()
-                self.broadcast(json.dumps(create_message(quit_accept_flag=1, payload=f"{username} has left the chatroom.")).encode())
+                timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                self.broadcast(json.dumps(create_message(quit_accept_flag=1, payload=f"{timestamp} {username} has left the chatroom.")).encode())
                 self.num_clients -= 1
                 break
 
@@ -109,8 +101,7 @@ class ChatroomServer:
                 timestamp = message['TIMESTAMP']
                 broadcast_message = create_message(payload=f"{timestamp} {username}: {message['PAYLOAD']}")
                 self.broadcast(json.dumps(broadcast_message).encode())
-
-
+                self.chat_history.append(broadcast_message) # Store the message in the chat history
 
     def broadcast(self, message, prefix=""):
         for client_socket in self.clients:
@@ -126,7 +117,7 @@ class ChatroomServer:
                 'PORT_NUMBER': port_number
             })
         message = create_message(report_response_flag=1, number=num_users, payload=json.dumps(payload))
-        client_socket.send(json.dumps(message).encode())
+        return message
 
 
 if __name__ == "__main__":
