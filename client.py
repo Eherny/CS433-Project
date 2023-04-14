@@ -2,6 +2,7 @@ import json
 import socket
 import threading
 import datetime
+import os
 
 def create_message(report_request_flag=0, report_response_flag=0, join_request_flag=0, join_reject_flag=0,
                    join_accept_flag=0, new_user_flag=0, quit_request_flag=0, quit_accept_flag=0,
@@ -42,7 +43,7 @@ class ChatroomClient:
     def send_message(self):
         message = input("Enter your message: ")
         if message:
-            timestamp = datetime.datetime.now().strftime('[%H:%M:%S]')
+            timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             if message.startswith('/report'):
                 message = create_message(report_request_flag=1, username=self.username, timestamp=timestamp)
             elif message == 'q':
@@ -53,7 +54,8 @@ class ChatroomClient:
                 return
             else:
                 message = create_message(payload=message, username=self.username, timestamp=timestamp)
-            self.client_socket.send(json.dumps(message).encode())
+            self.client_socket.send((json.dumps(message) + '\n').encode())
+
 
 
     def join_chatroom_and_start(self):

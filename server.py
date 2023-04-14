@@ -2,6 +2,7 @@ import socket
 import threading
 import datetime
 import json
+import os
 
 def create_message(report_request_flag=0, report_response_flag=0, join_request_flag=0, join_reject_flag=0,
                    join_accept_flag=0, new_user_flag=0, quit_request_flag=0, quit_accept_flag=0,
@@ -67,20 +68,20 @@ class ChatroomServer:
                 username = message["USERNAME"]
                 if username in self.usernames:
                     reject_message = create_message(join_reject_flag=1, payload="The server rejects the join request. Another user is using this username.")
-                    client_socket.send(json.dumps(reject_message).encode())
+                    client_socket.send((json.dumps(reject_message) + '\n').encode())
                     client_socket.close()
                     return
                 self.usernames.append(username)
                 self.clients[client_socket] = username
                 print(f"New connection from {username}")
                 welcome_message = create_message(join_accept_flag=1, payload="Welcome to the chatroom!")
-                client_socket.send(json.dumps(welcome_message).encode())
+                client_socket.send((json.dumps(welcome_message) + '\n').encode())
 
                 for history_message in self.chat_history:
                     client_socket.send((json.dumps(history_message) + '\n').encode())
 
-                timestamp = datetime.datetime.now().strftime( '[%H:%M:%S]')
-                self.broadcast(json.dumps(create_message(new_user_flag=1, payload=f"{timestamp} {username} has joined the chatroom.")).encode())
+                timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                self.broadcast((json.dumps(create_message(new_user_flag=1, payload=f"{timestamp} {username} has joined the chatroom.")) + '\n').encode())
 
             elif message["QUIT_REQUEST_FLAG"] == 1:
                 username = self.clients[client_socket]
@@ -94,7 +95,8 @@ class ChatroomServer:
                 break
 
             elif message["REPORT_REQUEST_FLAG"] == 1:
-                self.send_report(client_socket)
+                report_message = self.send_report(client_socket)
+                client_socket.send((json.dumps(report_message) + '\n').encode())
 
             elif message["PAYLOAD"]:
                 username = self.clients[client_socket]
