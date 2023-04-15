@@ -130,21 +130,35 @@ class ChatroomClient:
     def get_report(self):
         report_request = create_message(report_request_flag=1, username=self.username)
         self.client_socket.send(json.dumps(report_request).encode())
-        report_response = json.loads(self.client_socket.recv(1024).decode())
+        received_data = self.client_socket.recv(1024).decode()
 
-        if report_response["REPORT_RESPONSE_FLAG"] == 1:
-            number_of_users = report_response["NUMBER"]
-            print(f"There are {number_of_users} active users in the chatroom.")
+        if received_data:  # Check if the received data is not empty
+            try:
+                report_response = json.loads(received_data)
+            except json.decoder.JSONDecodeError:
+                print("There are no active users in the chatroom currently")
+                self.show_menu()
+                return
 
-            if report_response["PAYLOAD"]:
-                for index, user in enumerate(report_response["PAYLOAD"], start=1):
-                    print(f"{index}. {user['USERNAME']} at IP: {user['IP_ADDRESS']} and port: {user['PORT_NUMBER']}.")
+            if report_response["REPORT_RESPONSE_FLAG"] == 1:
+                number_of_users = report_response["NUMBER"]
+                print(f"There are {number_of_users} active users in the chatroom.")
+
+                if report_response["PAYLOAD"]:
+                    payload = json.loads(report_response["PAYLOAD"])  # You need to parse the payload as it is a JSON string
+                    for index, user in enumerate(payload, start=1):
+                        print(f"{index}. {user['USERNAME']} at IP: {user['IP_ADDRESS']} and port: {user['PORT_NUMBER']}.")
+                else:
+                    print("No active users in the chatroom.")
             else:
-                print("No active users in the chatroom.")
+                print("Error: Invalid response from the server.")
         else:
-            print("Error: Invalid response from the server.")
+            print("Error: No data received from the server.")
 
         self.show_menu()
+
+
+
 
 
 
