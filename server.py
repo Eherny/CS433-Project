@@ -75,7 +75,7 @@ class ChatroomServer:
                 print(f"New connection from {username}")
                 self.num_clients += 1  # Increment the number of clients here
                 welcome_message_text = "Welcome to the chatroom!"
-                chat_history_text = json.dumps(self.chat_history)
+                chat_history_text = "\n".join([msg["PAYLOAD"] for msg in self.chat_history])
                 welcome_message = create_message(join_accept_flag=1, username=username, payload=f"{welcome_message_text}\nChat History:\n{chat_history_text}")
                 client_socket.send(json.dumps(welcome_message).encode())
 
