@@ -142,6 +142,16 @@ class ChatroomClient:
             self.client_socket.close()
         exit()
     def get_report(self):
+
+        if self.client_socket is None:
+            self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            try:
+                self.client_socket.connect((self.host, self.port))
+            except ConnectionRefusedError:
+                print("Unable to connect to the server. Please try again later.")
+                self.client_socket = None
+                return
+
         report_request = create_message(report_request_flag=1, username=self.username)
         self.client_socket.send(json.dumps(report_request).encode())
         received_data = self.client_socket.recv(1024).decode()
