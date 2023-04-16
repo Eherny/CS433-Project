@@ -74,9 +74,9 @@ class ChatroomServer:
                 self.clients[client_socket] = username
                 print(f"New connection from {username}")
                 self.num_clients += 1  # Increment the number of clients here
-                welcome_message_text = "Welcome to the chatroom!"
+                welcome_message_text = "Welcome to the chatroom!\nType lowercase ‘q’ and press enter at any time to quit the chatroom.\nType lowercase ‘a’ and press enter at any time to upload an attachment to the chatroom."
                 chat_history_text = "\n".join([msg["PAYLOAD"] for msg in self.chat_history])
-                welcome_message = create_message(join_accept_flag=1, username=username, payload=f"{welcome_message_text}\nChat History:\n{chat_history_text}")
+                welcome_message = create_message(join_accept_flag=1, username=username, payload=f"{welcome_message_text}\nHere is the History of the Chatroom:\n{chat_history_text}")
                 client_socket.send(json.dumps(welcome_message).encode())
 
                 timestamp = datetime.datetime.now().strftime( '[%H:%M:%S]')
@@ -111,7 +111,8 @@ class ChatroomServer:
                 else:
                     username = self.clients[client_socket]
                     timestamp = message['TIMESTAMP']
-                    broadcast_message = create_message(payload=f"{timestamp} {username}: {message['PAYLOAD']}")
+                    text_message= f"{timestamp} {username}: {message['PAYLOAD']}"
+                    broadcast_message = create_message(payload=text_message)
                     self.broadcast(json.dumps(broadcast_message).encode())
                     self.chat_history.append(broadcast_message) # Store the message in the chat history
 

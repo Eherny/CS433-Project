@@ -42,7 +42,7 @@ class ChatroomClient:
 
 
     def send_message(self):
-        message = input("Enter your message: ")
+        message = input()
         if message:
             timestamp = datetime.datetime.now().strftime('[%H:%M:%S]')
             if message.startswith('/report'):
@@ -52,6 +52,8 @@ class ChatroomClient:
                 self.client_socket.send(json.dumps(quit_message).encode())
                 self.running = False  # Set running to False before closing the socket
                 self.client_socket.close()
+                self.client_socket = None
+                self.username = None
                 return
             else:
                 message = create_message(payload=message, username=self.username, timestamp=timestamp)
@@ -96,6 +98,7 @@ class ChatroomClient:
             thread.start()
             while self.running:
                 self.send_message()
+            self.show_menu()
         elif response["JOIN_REJECT_FLAG"] == 1:
             print(response["PAYLOAD"])
             self.client_socket.close()
@@ -105,17 +108,26 @@ class ChatroomClient:
     def receive_messages(self):
         while self.running:
             try:
-                data = self.client_socket.recv(1024).decode()
-                messages = data.split('\n')[:-1]  # Split the data by newline characters and remove the last empty element
-                for message in messages:
-                    decoded_message = json.loads(message)
-                    if decoded_message["PAYLOAD"]:
-                        print(decoded_message["PAYLOAD"])
+                data = self.client_socket.recv(1024)
+                if not data:  # Check if data is empty, which means the connection is closed
+                    break
+                decoded_message = json.loads(data)
+
+                if decoded_message["NEW_USER_FLAG"] == 1 or decoded_message["QUIT_ACCEPT_FLAG"] == 1 or decoded_message["PAYLOAD"]:
+                    print(decoded_message["PAYLOAD"])
+                elif decoded_message["ATTACHMENT_FLAG"] == 1:
+                    print("You can now upload an attachment.")
+                else:
+                    print("Error: Invalid message received.")
+
             except ConnectionResetError:
                 print("Connection to the server has been lost.")
                 self.running = False
-                self.client_socket = None
-                self.username = None
+                break
+            except json.JSONDecodeError:
+                print("An error occurred while decoding the message.")
+                break
+
 
 
     def prompt_for_username(self):
