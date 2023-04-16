@@ -63,9 +63,11 @@ class ChatroomServer:
                 if username in self.usernames or self.num_clients >= self.max_clients:
                     if username in self.usernames:
                         payload = "The server rejects the join request. Another user is using this username."
+                        
                     else:
                         payload = "The server rejects the join request. The chatroom has reached its maximum capacity."
                     reject_message = create_message(join_reject_flag=1, payload=payload)
+                    print(f"Reject message sent to {username}: {payload}")
                     client_socket.send(json.dumps(reject_message).encode())
                     client_socket.close()
                     return
@@ -80,17 +82,17 @@ class ChatroomServer:
                 client_socket.send(json.dumps(welcome_message).encode())
 
                 timestamp = datetime.datetime.now().strftime( '[%H:%M:%S]')
-                self.broadcast(json.dumps(create_message(new_user_flag=1, payload=f"{timestamp} {username} has joined the chatroom.")).encode())
+                self.broadcast(json.dumps(create_message(new_user_flag=1, payload=f"{timestamp}Server: {username} has joined the chatroom.")).encode())
 
 
             elif message["QUIT_REQUEST_FLAG"] == 1:
                 username = self.clients[client_socket]
-                print(f"{username} has left the chatroom.")
+                print(f"Server:{username} has left the chatroom.")
                 self.usernames.remove(username)
                 del self.clients[client_socket]
                 client_socket.close()
                 timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                self.broadcast(json.dumps(create_message(quit_accept_flag=1, payload=f"{timestamp} {username} has left the chatroom.")).encode())
+                self.broadcast(json.dumps(create_message(quit_accept_flag=1, payload=f"{timestamp} Server: {username} has left the chatroom.")).encode())
                 self.num_clients -= 1
                 break
 

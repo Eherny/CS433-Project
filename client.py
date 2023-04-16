@@ -73,6 +73,7 @@ class ChatroomClient:
         message = create_message(attachment_flag=1, username=self.username, filename=filename,
                                  payload=content, filepath=filepath)
         self.client_socket.send(json.dumps(message).encode())
+        
     def join_chatroom_and_start(self):
         if self.username is None:
             self.prompt_for_username()
@@ -104,6 +105,7 @@ class ChatroomClient:
             self.client_socket.close()
             self.client_socket = None
             self.username = None
+            self.show_menu()
 
     def receive_messages(self):
         while self.running:
