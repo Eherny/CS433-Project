@@ -3,6 +3,7 @@ import socket
 import threading
 import datetime
 import os
+import base64
 
 def create_message(report_request_flag=0, report_response_flag=0, join_request_flag=0, join_reject_flag=0,
                    join_accept_flag=0, new_user_flag=0, quit_request_flag=0, quit_accept_flag=0,
@@ -47,6 +48,8 @@ class ChatroomClient:
             timestamp = datetime.datetime.now().strftime('[%H:%M:%S]')
             if message.startswith('/report'):
                 message = create_message(report_request_flag=1, username=self.username, timestamp=timestamp)
+            elif message == "a":
+                self.upload_file()
             elif message == 'q':
                 quit_message = create_message(quit_request_flag=1, username=self.username, timestamp=timestamp)
                 self.client_socket.send(json.dumps(quit_message).encode())
@@ -63,16 +66,17 @@ class ChatroomClient:
         print("Please enter the file path and name:")
         filepath = input("> ")
         try:
-            with open(filepath, 'r') as f:
-                content = f.read()
+            with open(filepath, "rb") as file:
+                content = base64.b64encode(file.read()).decode()
         except FileNotFoundError:
             print("File not found.")
             return
 
         filename = os.path.basename(filepath)
         message = create_message(attachment_flag=1, username=self.username, filename=filename,
-                                 payload=content, filepath=filepath)
+                             payload=content, filepath=filepath)
         self.client_socket.send(json.dumps(message).encode())
+
         
     def join_chatroom_and_start(self):
         if self.username is None:
@@ -118,10 +122,17 @@ class ChatroomClient:
                 if decoded_message["NEW_USER_FLAG"] == 1 or decoded_message["QUIT_ACCEPT_FLAG"] == 1 or decoded_message["PAYLOAD"]:
                     print(decoded_message["PAYLOAD"])
                 elif decoded_message["ATTACHMENT_FLAG"] == 1:
-                    print("You can now upload an attachment.")
+                    filename = decoded_message["FILENAME"]
+                    payload = decoded_message["PAYLOAD"]
+                    with open(os.path.join("downloads", filename), "wb") as f:
+                        f.write(payload)
+                    print(f"Downloaded attachment: {filename}")
+                    with open(os.path.join("downloads", filename), "r") as f:
+                        content = f.read()
+                    print(f"Content of {filename}:")
+                    print(content)
                 else:
                     print("Error: Invalid message received.")
-
             except ConnectionResetError:
                 print("Connection to the server has been lost.")
                 self.running = False

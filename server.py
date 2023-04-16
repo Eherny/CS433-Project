@@ -3,6 +3,7 @@ import threading
 import datetime
 import json
 import os
+import base64
 
 def create_message(report_request_flag=0, report_response_flag=0, join_request_flag=0, join_reject_flag=0,
                    join_accept_flag=0, new_user_flag=0, quit_request_flag=0, quit_accept_flag=0,
@@ -98,7 +99,8 @@ class ChatroomServer:
 
             elif message["REPORT_REQUEST_FLAG"] == 1:
                 self.send_report(client_socket)
-
+            elif message["ATTACHMENT_FLAG"] == 1:
+                self.receive_file(client_socket, message)
             elif message["PAYLOAD"]:
                 if message["PAYLOAD"] == "a":
                     client_socket.send(json.dumps(create_message(attachment_flag=1)).encode())
@@ -106,10 +108,11 @@ class ChatroomServer:
                     if attachment_message["ATTACHMENT_FLAG"] == 1:
                         filename = attachment_message["FILENAME"]
                         payload = attachment_message["PAYLOAD"]
-                        with open(os.path.join("downloads", filename), "w") as f:
+                        with open(os.path.join("downloads", filename), "wb") as f:
                             f.write(payload)
                         self.broadcast(json.dumps(create_message(payload=f"{datetime.datetime.now().strftime('[%H:%M:%S]')} {self.clients[client_socket]} uploaded an attachment: {filename}")).encode())
                         self.chat_history.append(create_message(payload=f"{datetime.datetime.now().strftime('[%H:%M:%S]')} {self.clients[client_socket]} uploaded an attachment: {filename}"))
+
                 else:
                     username = self.clients[client_socket]
                     timestamp = message['TIMESTAMP']
@@ -118,6 +121,15 @@ class ChatroomServer:
                     self.broadcast(json.dumps(broadcast_message).encode())
                     self.chat_history.append(broadcast_message) # Store the message in the chat history
 
+    def receive_file(self, client_socket, message):
+        file_data = base64.b64decode(message["PAYLOAD"].encode())
+        file_name = message["FILENAME"]
+        with open(os.path.join("downloads", file_name), "wb") as f:
+            f.write(file_data)
+        timestamp = datetime.datetime.now().strftime('[%H:%M:%S]')
+        self.broadcast(json.dumps(create_message(payload=f"{timestamp} {self.clients[client_socket]} uploaded an attachment: {file_name}")).encode())
+        self.chat_history.append(create_message(payload=f"{timestamp} {self.clients[client_socket]} uploaded an attachment: {file_name}"))
+        self.broadcast(json.dumps(create_message(payload=f"{timestamp} {self.clients[client_socket]}: {base64.b64decode(message['PAYLOAD'])}")).encode())
 
 
     def broadcast(self, message, prefix=""):
