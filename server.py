@@ -50,14 +50,17 @@ class ChatroomServer:
             thread.start()
 
     def handle_client(self, client_socket):
-        while True:
+          while True:
             try:
                 raw_message = client_socket.recv(1024)
                 if not raw_message:
                     break
                 message = json.loads(raw_message.decode())
-            except (ConnectionResetError, json.JSONDecodeError):
-                break
+                print("Decoded message:", message)
+                if not isinstance(message, dict):
+                    raise ValueError("Invalid message format")
+            except (ConnectionResetError, json.JSONDecodeError, ValueError):
+                continue
 
             if message["JOIN_REQUEST_FLAG"] == 1:
                 username = message["USERNAME"]
@@ -100,7 +103,30 @@ class ChatroomServer:
             elif message["REPORT_REQUEST_FLAG"] == 1:
                 self.send_report(client_socket)
             elif message["ATTACHMENT_FLAG"] == 1:
-                self.receive_file(client_socket, message)
+                filename = message["FILENAME"]
+                payload = message["PAYLOAD"]
+                content = base64.b64decode(payload.encode())
+                with open(os.path.join("downloads", filename), "wb") as f:
+                    f.write(content)
+
+                with open(os.path.join("downloads", filename), "r") as f:
+                    file_content = f.read()
+                timestamp = datetime.datetime.now().strftime('[%H:%M:%S]')
+                broadcast_message = create_message(
+                attachment_flag=1,
+                username=message["USERNAME"],
+                filename=filename,
+                payload=file_content,
+                timestamp=timestamp
+            )
+
+                broadcast_payload = f"{timestamp} {self.clients[client_socket]} uploaded an attachment: {filename}"
+                broadcast_message_formatted = create_message(payload=broadcast_payload)
+
+                self.broadcast(json.dumps(broadcast_message_formatted).encode())
+                file_contents_payload = f"{timestamp} {self.clients[client_socket]} shared the contents of {filename}:\n{file_content}"
+                file_contents_message = create_message(payload=file_contents_payload)
+                self.broadcast(json.dumps(file_contents_message).encode())
             elif message["PAYLOAD"]:
                 if message["PAYLOAD"] == "a":
                     client_socket.send(json.dumps(create_message(attachment_flag=1)).encode())
@@ -120,21 +146,11 @@ class ChatroomServer:
                     broadcast_message = create_message(payload=text_message)
                     self.broadcast(json.dumps(broadcast_message).encode())
                     self.chat_history.append(broadcast_message) # Store the message in the chat history
+        
 
-    def receive_file(self, client_socket, message):
-        file_data = base64.b64decode(message["PAYLOAD"].encode())
-        file_name = message["FILENAME"]
-        with open(os.path.join("downloads", file_name), "wb") as f:
-            f.write(file_data)
-        timestamp = datetime.datetime.now().strftime('[%H:%M:%S]')
-        self.broadcast(json.dumps(create_message(payload=f"{timestamp} {self.clients[client_socket]} uploaded an attachment: {file_name}")).encode())
-        self.chat_history.append(create_message(payload=f"{timestamp} {self.clients[client_socket]} uploaded an attachment: {file_name}"))
-        self.broadcast(json.dumps(create_message(payload=f"{timestamp} {self.clients[client_socket]}: {base64.b64decode(message['PAYLOAD'])}")).encode())
-
-
-    def broadcast(self, message, prefix=""):
+    def broadcast(self, message, prefix=b""):
         for client_socket in self.clients:
-            client_socket.send(prefix.encode()+message)
+            client_socket.send(prefix+message)
     def send_report(self, client_socket):
         num_users = len(self.clients)
         payload = []

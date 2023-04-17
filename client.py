@@ -76,6 +76,7 @@ class ChatroomClient:
         message = create_message(attachment_flag=1, username=self.username, filename=filename,
                              payload=content, filepath=filepath)
         self.client_socket.send(json.dumps(message).encode())
+        return message
 
         
     def join_chatroom_and_start(self):
@@ -123,12 +124,8 @@ class ChatroomClient:
                     print(decoded_message["PAYLOAD"])
                 elif decoded_message["ATTACHMENT_FLAG"] == 1:
                     filename = decoded_message["FILENAME"]
-                    payload = decoded_message["PAYLOAD"]
-                    with open(os.path.join("downloads", filename), "wb") as f:
-                        f.write(payload)
-                    print(f"Downloaded attachment: {filename}")
-                    with open(os.path.join("downloads", filename), "r") as f:
-                        content = f.read()
+                    print(f"Attachment: {filename}")
+                    content = decoded_message["PAYLOAD"]
                     print(f"Content of {filename}:")
                     print(content)
                 else:
@@ -140,6 +137,7 @@ class ChatroomClient:
             except json.JSONDecodeError:
                 print("An error occurred while decoding the message.")
                 break
+
 
 
 
