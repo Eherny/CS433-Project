@@ -41,7 +41,17 @@ class ChatroomClient:
 
         self.show_menu()
 
-
+    def recv_json(self, buffer_size=1024):
+        data = b""
+        while True:
+            chunk = self.client_socket.recv(buffer_size)
+            data += chunk
+            try:
+                response = json.loads(data.decode())
+                break
+            except json.JSONDecodeError:
+                continue
+        return response
     def send_message(self):
         message = input()
         if message:
@@ -94,7 +104,7 @@ class ChatroomClient:
         join_request = create_message(join_request_flag=1, username=self.username)
         self.client_socket.send(json.dumps(join_request).encode())
 
-        response = json.loads(self.client_socket.recv(1024).decode())
+        response = self.recv_json()
 
         if response["JOIN_ACCEPT_FLAG"] == 1:
             print(response["PAYLOAD"])
