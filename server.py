@@ -50,13 +50,14 @@ class ChatroomServer:
             thread.start()
 
     def handle_client(self, client_socket):
+          BUFFER_SIZE=1024
           while True:
             try:
                 raw_message = client_socket.recv(1024)
                 if not raw_message:
                     break
                 message = json.loads(raw_message.decode())
-                print("Decoded message:", message)
+                #print("Decoded message:", message)
                 if not isinstance(message, dict):
                     raise ValueError("Invalid message format")
             except (ConnectionResetError, json.JSONDecodeError, ValueError):
@@ -86,7 +87,11 @@ class ChatroomServer:
                 client_socket.send(json.dumps(welcome_message).encode())
 
                 timestamp = datetime.datetime.now().strftime( '[%H:%M:%S]')
-                self.broadcast(json.dumps(create_message(new_user_flag=1, payload=f"{timestamp}Server: {username} has joined the chatroom.")).encode())
+                new_user_message = json.dumps(create_message(new_user_flag=1, payload=f"{timestamp}Server: {username} has joined the chatroom.")).encode()
+                self.broadcast(new_user_message)
+        
+                # Store the message in the chat history
+                self.chat_history.append(json.loads(new_user_message.decode()))
 
 
             elif message["QUIT_REQUEST_FLAG"] == 1:
@@ -95,12 +100,16 @@ class ChatroomServer:
                 self.usernames.remove(username)
                 del self.clients[client_socket]
                 client_socket.close()
-                timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                self.broadcast(json.dumps(create_message(quit_accept_flag=1, payload=f"{timestamp} Server: {username} has left the chatroom.")).encode())
+                timestamp = datetime.datetime.now().strftime('%H:%M:%S')
+                quit_message = create_message(quit_accept_flag=1, payload=f"{timestamp} Server: {username} has left the chatroom.")
+                self.broadcast(json.dumps(quit_message).encode())
+                self.chat_history.append(quit_message)  # Store the quit message in the chat history
                 self.num_clients -= 1
                 break
 
             elif message["REPORT_REQUEST_FLAG"] == 1:
+                ip_address, port_number = client_socket.getpeername()
+                print(f"Server: Client ({ip_address}, {port_number}) has requested a report.")
                 self.send_report(client_socket)
             elif message["ATTACHMENT_FLAG"] == 1:
                 filename = message["FILENAME"]
@@ -119,14 +128,17 @@ class ChatroomServer:
                 payload=file_content,
                 timestamp=timestamp
             )
-
+                
                 broadcast_payload = f"{timestamp} {self.clients[client_socket]} uploaded an attachment: {filename}"
                 broadcast_message_formatted = create_message(payload=broadcast_payload)
+                self.chat_history.append(broadcast_message_formatted)
 
                 self.broadcast(json.dumps(broadcast_message_formatted).encode())
                 file_contents_payload = f"{timestamp} {self.clients[client_socket]} shared the contents of {filename}:\n{file_content}"
                 file_contents_message = create_message(payload=file_contents_payload)
                 self.broadcast(json.dumps(file_contents_message).encode())
+                self.chat_history.append(file_contents_message)
+                print(f"Server: {username} has sent a file: {filename}")
             elif message["PAYLOAD"]:
                 if message["PAYLOAD"] == "a":
                     client_socket.send(json.dumps(create_message(attachment_flag=1)).encode())
@@ -143,6 +155,7 @@ class ChatroomServer:
                     username = self.clients[client_socket]
                     timestamp = message['TIMESTAMP']
                     text_message= f"{timestamp} {username}: {message['PAYLOAD']}"
+                    print(f"Server: {username} has written a message: {message['PAYLOAD']}")
                     broadcast_message = create_message(payload=text_message)
                     self.broadcast(json.dumps(broadcast_message).encode())
                     self.chat_history.append(broadcast_message) # Store the message in the chat history

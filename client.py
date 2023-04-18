@@ -54,7 +54,6 @@ class ChatroomClient:
                 quit_message = create_message(quit_request_flag=1, username=self.username, timestamp=timestamp)
                 self.client_socket.send(json.dumps(quit_message).encode())
                 self.running = False  # Set running to False before closing the socket
-                self.client_socket.close()
                 self.client_socket = None
                 self.username = None
                 return
@@ -212,6 +211,7 @@ class ChatroomClient:
             self.quit()
         else:
             print("Invalid choice. Please try again.")
+            self.show_menu()
 
 if __name__ == "__main__":
     host = 'localhost'
